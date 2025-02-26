@@ -15,21 +15,6 @@ API_VERSION = config["fastapi"]["api_version"]
 # API Endpoints
 API_URL = f"http://{FASTAPI_HOST}:{FASTAPI_PORT}/api/{API_VERSION}"
 
-############# Initialize Session State #############
-
-if "thread_id" not in st.session_state:
-    st.session_state.thread_id = "1"
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "threads" not in st.session_state:
-    st.session_state.threads = []
-if "files" not in st.session_state:
-    st.session_state.files = []
-if "selected_file" not in st.session_state:
-    st.session_state.selected_file = ""
-if "enable_web_search" not in st.session_state:
-    st.session_state.enable_web_search = False
-
 ############# Functions #############
     
 def upload_file(uploaded_file):
@@ -58,6 +43,21 @@ def delete_uploaded_file(file_name):
     response = requests.delete(f"{API_URL}/delete/{file_name}")
     return response
 
+############# Initialize Session State #############
+
+if "thread_id" not in st.session_state:
+    st.session_state.thread_id = "1"
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+if "threads" not in st.session_state:
+    st.session_state.threads = []
+if "files" not in st.session_state:
+    st.session_state.files = []
+if "selected_file" not in st.session_state:
+    st.session_state.selected_file = ""
+if "file_uploaded" not in st.session_state:
+    st.session_state.file_uploaded = get_uploaded_files()
+
 ############# Sidebar: File Upload Section #############
 
 st.sidebar.header("📁 File Upload")
@@ -69,6 +69,7 @@ if uploaded_file and st.sidebar.button("Upload"):
     
     if response.status_code == 200:
         st.session_state.files = get_uploaded_files()
+        st.session_state.file_uploaded = bool(st.session_state.files)  # Enable chat section if file uploaded
         st.success(f"✅ File '{uploaded_file.name}' uploaded successfully!")
         st.rerun()
     else:
@@ -77,22 +78,19 @@ if uploaded_file and st.sidebar.button("Upload"):
 if "files" not in st.session_state or not st.session_state.files:
     st.session_state.files = get_uploaded_files()
 
-st.session_state.selected_file = st.sidebar.radio("Select a file", ["None"] + st.session_state.files)
+st.session_state.selected_file = st.sidebar.radio("Select a file", st.session_state.files)
 
 if st.sidebar.button("🗑️ Delete Selected File") and st.session_state.selected_file != None:
     response = delete_uploaded_file(st.session_state.selected_file) 
     if response.status_code == 200:
         st.success(f"✅ File '{st.session_state.selected_file}' deleted successfully!")
         st.session_state.files = get_uploaded_files()
+        st.session_state.file_uploaded = bool(st.session_state.files)  # Disable chat section if no files remain
         st.rerun()
     else:
         st.error("❌ Failed to delete file.")
 
 ############# Sidebar: Chat Controls #############
-
-st.sidebar.header("💬 Chat Controls")
-
-st.session_state.enable_web_search = st.sidebar.checkbox("Enable Web Search")
 
 # Load existing chat threads
 if not st.session_state.threads:
@@ -119,33 +117,34 @@ else:
 
 st.title("💬 AI Chat with LangGraph")
 
-# Display chat messages
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+if st.session_state.file_uploaded:
 
-# Handle new user input
-if prompt := st.chat_input("Type a message..."):
-    # Display user message
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
+    # Display chat messages
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
-    # Prepare API request
-    payload = {
-        "query": prompt,
-        "file": "" if st.session_state.selected_file == "" else st.session_state.selected_file,
-        "enable_web_search": st.session_state.enable_web_search,
-    }
-    response = requests.post(f"{API_URL}/conversations/{st.session_state.thread_id}/chat", json=payload)
+    # Handle new user input
+    if prompt := st.chat_input("Type a message..."):
+        # Display user message
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
 
-    if response.status_code == 200:
-        assistant_response = response.json().get("response", "")
-        
-        with st.chat_message("assistant"):
-            st.markdown(assistant_response)
+        # Prepare API request
+        payload = {
+            "query": prompt,
+            "file": "" if st.session_state.selected_file == "" else st.session_state.selected_file,
+        }
+        response = requests.post(f"{API_URL}/conversations/{st.session_state.thread_id}/chat", json=payload)
 
-        # Save response in chat history
-        st.session_state.messages.append({"role": "assistant", "content": assistant_response})
-    else:
-        st.error("❌ Failed to fetch response from LangGraph API.")
+        if response.status_code == 200:
+            assistant_response = response.json().get("response", "")
+            
+            with st.chat_message("assistant"):
+                st.markdown(assistant_response)
+
+            # Save response in chat history
+            st.session_state.messages.append({"role": "assistant", "content": assistant_response})
+        else:
+            st.error("❌ Failed to fetch response from LangGraph API.")

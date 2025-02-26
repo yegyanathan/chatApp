@@ -27,6 +27,7 @@ INCLUDE_RAW_CONTENT = config.getboolean("tavily", "include_raw_content")
 INCLUDE_IMAGES = config.getboolean("tavily", "include_images")
 MAX_RESULTS = config["tavily"]["max_results"]
 MODEL_NAME = config["llm"]["name"]
+MODEL_PROVIDER = config["llm"]["provider"]
 TEMPERATURE = float(config["llm"]["temperature"])
 
 EMBED_MODEL_NAME = config["embedding"]["name"]
@@ -47,6 +48,7 @@ graph = get_graph(
     include_images=INCLUDE_IMAGES, 
     max_result=MAX_RESULTS, 
     model_name=MODEL_NAME, 
+    model_provider=MODEL_PROVIDER,
     temperature=TEMPERATURE, 
     sqlite_url=SQLITE_URI
 )
@@ -127,14 +129,13 @@ async def chat(request: ChatRequest, thread_id: str = Path(..., description="Con
     Handles chat queries by interacting with the LangGraph model.
     """
     try:
+        logger.info(request)
         query = request.query
         file_path = os.path.join(UPLOAD_DIR, request.file) if request.file != 'None' else ""
-        enable_web_search = request.enable_web_search
 
         state = ChatState(
             messages=[HumanMessage(query)], 
-            file_path=file_path, 
-            enable_web_search=enable_web_search, 
+            file_path=file_path,  
             rag_context="", 
             web_context=""
         )
@@ -155,7 +156,7 @@ async def get_conversations():
     Fetches all distinct conversation thread IDs stored in the SQLite database.
     """
     try:
-        with sqlite3.connect("./db/checkpoints.db", check_same_thread=False) as conn:
+        with sqlite3.connect(SQLITE_URI, check_same_thread=False) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT DISTINCT thread_id FROM checkpoints;")
             thread_ids = [tid[0] for tid in cursor.fetchall()]

@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from langgraph.graph import MessagesState
 
 class UploadResponse(BaseModel):
@@ -13,7 +13,6 @@ class DeleteResponse(BaseModel):
 class ChatRequest(BaseModel):   
     query: str
     file: str
-    enable_web_search: bool
 
 
 class ChatResponse(BaseModel):
@@ -21,6 +20,9 @@ class ChatResponse(BaseModel):
 
 class ChatState(MessagesState):
     file_path: str = ""
-    enable_web_search: bool = False
     rag_context: str = ""
     web_context: str = ""
+
+
+class Grade(BaseModel):
+    binary_score: str = Field(description="Relevance score 'yes' or 'no'")
