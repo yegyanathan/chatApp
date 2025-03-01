@@ -85,10 +85,16 @@ class LLMNode(Node):
     def invoke(self, state: ChatState) -> dict:
         """Generate response using LLM while maintaining conversation history."""
         logger.info(f"LLMNode: Generating response using model '{self.model_name}' with temperature {self.temperature}")
+
         if state["rag_context"]:
             state["messages"].append(SystemMessage(f"RAG Context: {state['rag_context']}"))
         if state["web_context"]:
             state["messages"].append(SystemMessage(f"Web Context: {state['web_context']}"))
+
+        # Append an instruction to highlight RAG-retrieved content
+        state["messages"].append(SystemMessage(
+            "Highlight any information taken from RAG or Web contexts using **...** in your response."
+        ))
         logger.info(f'Messages - {state["messages"]}')
         response = self.llm.invoke(state["messages"])
         token_usage = response.response_metadata["token_usage"]
